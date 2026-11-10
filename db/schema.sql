@@ -253,7 +253,7 @@ create table audit_log (
 -- ───────────────────────── Shop isolation (RLS) ─────────────────────────
 -- A signed-in staff member can only touch rows of their own shop.
 create or replace function current_shop_id() returns uuid
-language sql stable security definer as $$
+language sql stable security definer set search_path = public as $$
   select shop_id from staff where auth_user_id = auth.uid() and active
 $$;
 

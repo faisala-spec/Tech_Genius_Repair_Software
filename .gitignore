@@ -1,8 +1,8 @@
 # Customer data never goes into git
 import/output/
 *.xlsx
-
 *.csv
 .env*
 node_modules/
 .next/
+!.env.example

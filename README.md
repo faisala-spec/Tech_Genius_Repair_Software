@@ -1,10 +1,31 @@
 # Tech Genius Software
 
-Repair-shop software for Tech Genius (tickets, invoices, inventory, AI follow-up), built to replace RepairDesk and later sold to other shops.
+Repair-shop software for Tech Genius: repair tickets, customers, invoices and automatic texts. Built to replace RepairDesk and, later, to sell to other shops.
 
-- `db/schema.sql` — PostgreSQL/Supabase schema with per-shop row-level security
-- `import/import_repairdesk.py` — cleans RepairDesk exports into import-ready files and a review list
+## Day One features
+- Sign-in for staff (owner, manager, technician, front desk)
+- Search customers by phone, name, email or ticket number (`T-1001`)
+- New repair ticket in one screen, with optional check-in text
+- Ticket board by status; "Ready for pickup" texts the customer automatically
+- Notes and full history on every ticket
+- Invoices with 13% HST, discounts, deposits, split payments; void (owner/manager only)
+- Printable invoice with logo, HST number and warranty terms; ticket labels for the Brother QL-800
 
-Customer exports and cleaned files stay out of git (see `.gitignore`).
-- `db/seed_techgenius.sql` — Tech Genius shop record: logo, orange #E28E34, HST number, invoice terms; tickets start fresh at T-1001, invoices at 1001
-- `public/brand/techgenius-logo.png` — logo taken from a RepairDesk invoice (180 px; replace with the original file when available)
+## Stack
+Next.js 15 · Supabase (Postgres + Auth, Canada region) · Tailwind CSS · Twilio (texts) · Vercel (hosting)
+
+## Database setup (Supabase → SQL Editor, in this order)
+1. `db/schema.sql`
+2. `db/seed_techgenius.sql`
+3. `db/002_app_functions.sql`
+4. `db/003_import_customers.sql` (step A, upload CSV, then step B)
+5. `db/004_add_staff.sql` (once per staff member)
+
+## Environment variables (Vercel)
+See `.env.example`.
+
+## Folders
+- `app/` screens · `components/` shared pieces · `lib/` helpers
+- `db/` database scripts · `import/` RepairDesk import tool · `public/brand/` logo
+
+Customer exports and cleaned files never go into git (see `.gitignore`).
