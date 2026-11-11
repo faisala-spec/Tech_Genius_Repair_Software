@@ -34,15 +34,15 @@ If Day One isn't solid by Nov 26, tell the owner plainly: one more month of Repa
 - **Owner's own feature request:** a "talk to update" button — tech or front desk taps, speaks, and AI changes the ticket status, writes notes, or drafts a quote. Do this right after Day One.
 
 ## Current state (as of Nov 11, 2026)
-Built and pushed (not yet run in a browser — first priority is to run it and fix what breaks):
+Built and pushed. Nov 11: `npm install`, `npm run build` (type checking ON, zero errors) and `npm run dev` all work; login screen loads at http://localhost:3000/login. Screens past login not clicked through yet (needs the database set up first).
 - `app/` Next.js 15 App Router screens: login, home dashboard, tickets (board + list + new + detail with status buttons, notes, texting), customers (search by phone/name/email/ticket #, detail, new, edit), invoices (builder with HST/discount/deposit/payments, detail, void for owner/manager), print pages (`/print/invoice/[id]`, `/print/label/[id]`).
 - `lib/` Supabase server client, session/role helpers, formatting, Twilio sender (texts no-op until env vars exist).
 - `db/` SQL: `schema.sql`, `seed_techgenius.sql`, `002_app_functions.sql`, `003_import_customers.sql`, `004_add_staff.sql`. Tested on Postgres 16: runs clean, imports 9,276 customers, numbering starts at 1001, RLS hides all rows from a non-staff user.
 - `import/import_repairdesk.py` cleans RepairDesk exports. Output files contain customer PII and are git-ignored; the owner has `customers_clean.csv`.
-- `next.config.mjs` has `ignoreBuildErrors: true` because the first version was written without a local build. Turn type checking back on once it builds clean.
+- `next.config.mjs`: type checking is on; ESLint skipped until it's added. `npm audit` flags PostCSS inside Next 15 (build-time only); the fix needs Next 16, do it after Nov 27.
 
 Not done yet:
-- **Supabase** project "Tech Genius Software" (ref `bnwobsaishumqwrodifx`) exists but is EMPTY and is in **us-east-1**, not Canada. The plan promised Canadian hosting (PIPEDA, selling point to Canadian shops). Ask the owner whether to recreate it in `ca-central-1` NOW, before any data goes in. Then run the SQL files in order (see README), upload `customers_clean.csv`, add the owner as staff, turn off public sign-ups.
+- **Supabase**: owner chose Canada. New project "Tech Genius Software (Canada)" (ref `dsqnmdeersmkjojnwcij`, ca-central-1) created Nov 11, still EMPTY; local `.env.local` points at it. The old US project (ref `bnwobsaishumqwrodifx`, us-east-1, empty) is unused; delete it once the owner OKs. Next: run the SQL files in order (see README), upload `customers_clean.csv`, add the owner as staff, turn off public sign-ups.
 - **Vercel**: project imported from GitHub; env vars `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` not confirmed set.
 - Twilio account/number not set up.
 

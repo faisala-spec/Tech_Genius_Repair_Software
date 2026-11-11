@@ -4,9 +4,24 @@ import { createServerClient } from "@supabase/ssr";
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    // Settings missing (e.g. Vercel env vars not set): don't crash every page.
+    // Pages that need data will still fail, but /login can render.
+    console.error("Supabase settings missing: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    if (!request.nextUrl.pathname.startsWith("/login")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {

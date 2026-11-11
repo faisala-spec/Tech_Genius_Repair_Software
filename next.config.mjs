@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Day One: ship fast; type and lint checks get switched back on once the app settles.
-  typescript: { ignoreBuildErrors: true },
+  // Type checking is on. Lint is skipped until ESLint is added to the project.
   eslint: { ignoreDuringBuilds: true },
   poweredByHeader: false,
   async headers() {
