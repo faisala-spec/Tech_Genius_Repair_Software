@@ -27,5 +27,6 @@ See `.env.example`.
 ## Folders
 - `app/` screens · `components/` shared pieces · `lib/` helpers
 - `db/` database scripts · `import/` RepairDesk import tool · `public/brand/` logo
+- `docs/PLAN.md` full product plan and owner decisions · `CLAUDE.md` working notes for Claude Code
 
 Customer exports and cleaned files never go into git (see `.gitignore`).
