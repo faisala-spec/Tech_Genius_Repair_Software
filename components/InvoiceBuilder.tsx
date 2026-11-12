@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { money, PAYMENT_METHODS } from "@/lib/format";
 import { ui } from "@/lib/ui";
 
-type Line = { description: string; qty: number; unit_price: number; taxable: boolean; imei_serial?: string };
+type Line = { description: string; qty: number; unit_price: number; unit_cost?: number; taxable: boolean; imei_serial?: string };
 
 export default function InvoiceBuilder({
   action,
@@ -52,7 +52,7 @@ export default function InvoiceBuilder({
         <div className="space-y-3">
           {lines.map((l, i) => (
             <div key={i} className="grid grid-cols-12 items-end gap-2 border-b border-zinc-100 pb-3">
-              <div className="col-span-12 sm:col-span-5">
+              <div className="col-span-12 sm:col-span-4">
                 <label className={ui.label}>Description</label>
                 <input value={l.description} onChange={(e) => update(i, { description: e.target.value })} className={ui.input} placeholder="iPhone 14 Plus LCD replacement" />
               </div>
@@ -68,17 +68,26 @@ export default function InvoiceBuilder({
                 <label className={ui.label}>Price ($)</label>
                 <input type="number" step="0.01" value={l.unit_price} onChange={(e) => update(i, { unit_price: Number(e.target.value) })} className={ui.input} />
               </div>
-              <label className="col-span-6 flex items-center gap-1 pb-2 text-xs text-zinc-600 sm:col-span-1">
-                <input type="checkbox" checked={l.taxable} onChange={(e) => update(i, { taxable: e.target.checked })} className="accent-brand" />
-                {taxName}
-              </label>
-              <button
-                type="button"
-                onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
-                className="col-span-6 pb-2 text-right text-xs text-red-600 hover:underline sm:col-span-1"
-              >
-                Remove
-              </button>
+              <div className="col-span-6 sm:col-span-2">
+                <label className={ui.label} title="What the part cost us. Used for profit; never printed.">Part cost ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={l.unit_cost ?? ""}
+                  onChange={(e) => update(i, { unit_cost: e.target.value === "" ? undefined : Number(e.target.value) })}
+                  className={ui.input}
+                  placeholder="optional"
+                />
+              </div>
+              <div className="col-span-6 flex flex-col items-end gap-1 pb-1 sm:col-span-1">
+                <label className="flex items-center gap-1 text-xs text-zinc-600">
+                  <input type="checkbox" checked={l.taxable} onChange={(e) => update(i, { taxable: e.target.checked })} className="accent-brand" />
+                  {taxName}
+                </label>
+                <button type="button" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} className="text-xs text-red-600 hover:underline">
+                  Remove
+                </button>
+              </div>
             </div>
           ))}
         </div>

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireStaff, canManage } from "@/lib/session";
 import { PAYMENT_METHODS } from "@/lib/format";
 
-type Line = { description: string; qty: number; unit_price: number; taxable: boolean; imei_serial?: string };
+type Line = { description: string; qty: number; unit_price: number; unit_cost: number; taxable: boolean; imei_serial?: string };
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -35,6 +35,7 @@ export async function createInvoice(f: FormData) {
         description: String(l.description ?? "").trim(),
         qty: Number(l.qty) || 0,
         unit_price: Number(l.unit_price) || 0,
+        unit_cost: Math.max(0, Number(l.unit_cost) || 0),
         taxable: l.taxable !== false,
         imei_serial: l.imei_serial ? String(l.imei_serial).trim() : undefined,
       }))
@@ -92,6 +93,7 @@ export async function createInvoice(f: FormData) {
       imei_serial: l.imei_serial ?? null,
       qty: l.qty,
       unit_price: l.unit_price,
+      unit_cost: l.unit_cost,
       taxable: l.taxable,
       line_total: round2(l.qty * l.unit_price),
     }))
