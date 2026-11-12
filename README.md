@@ -21,6 +21,7 @@ Next.js 15 · Supabase (Postgres + Auth, Canada region) · Tailwind CSS · Twili
 4. `db/003_import_customers.sql` (step A, upload CSV, then step B)
 5. `db/004_add_staff.sql` (once per staff member)
 6. `db/005_security_fixes.sql`
+7. `db/006_customer_sort.sql`
 
 ## Environment variables (Vercel)
 See `.env.example`.
