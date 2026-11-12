@@ -40,7 +40,19 @@ export function dateTime(s: string | null | undefined) {
 
 export function dateOnly(s: string | null | undefined) {
   if (!s) return "";
+  // A plain date like "2027-01-10" has no time zone: show it as-is, don't shift it.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", dateStyle: "medium" }).format(new Date(s + "T00:00:00Z"));
+  }
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, dateStyle: "medium" }).format(new Date(s));
+}
+
+/** Today's date in Toronto plus N days, as "YYYY-MM-DD" (en-CA formats dates that way). */
+export function torontoDatePlus(days: number) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  const d = new Date(today + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 export function phonePretty(p: string | null | undefined) {

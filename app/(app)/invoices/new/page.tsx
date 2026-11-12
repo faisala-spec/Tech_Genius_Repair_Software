@@ -15,6 +15,9 @@ export default async function NewInvoice({ searchParams }: { searchParams: Promi
   if (ticket) {
     const { data } = await supabase.from("tickets").select("id, number, brand, model, device_type, problem, imei_serial, estimate, deposit, customer_id").eq("id", ticket).single();
     t = data;
+    // Same rule as the server: the deposit only counts on the ticket's first invoice.
+    const { count: earlier } = await supabase.from("invoices").select("id", { count: "exact", head: true }).eq("ticket_id", ticket).neq("status", "void");
+    if (t && earlier) t.deposit = 0;
   }
   const customerId = t?.customer_id ?? customer ?? null;
   let c: any = null;

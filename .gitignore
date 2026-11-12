@@ -6,3 +6,5 @@ import/output/
 node_modules/
 .next/
 !.env.example
+next-env.d.ts
+*.tsbuildinfo

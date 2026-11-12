@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/session";
-import { normalizePhone, ticketLabel, deviceName, money, STATUSES } from "@/lib/format";
+import { normalizePhone, ticketLabel, deviceName, money, STATUSES, torontoDatePlus } from "@/lib/format";
 import { sendSms, smsTemplates } from "@/lib/sms";
 
 const str = (f: FormData, k: string) => {
@@ -102,9 +102,7 @@ export async function setStatus(f: FormData) {
   if (to === "picked_up") {
     patch.picked_up_at = new Date().toISOString();
     patch.passcode_enc = null; // passcodes never outlive the repair
-    const w = new Date();
-    w.setDate(w.getDate() + Number(shop.repair_warranty_days ?? 60));
-    patch.warranty_until = w.toISOString().slice(0, 10);
+    patch.warranty_until = torontoDatePlus(Number(shop.repair_warranty_days ?? 60));
   }
   const { error } = await supabase.from("tickets").update(patch).eq("id", id);
   if (error) throw new Error(error.message);
@@ -120,13 +118,15 @@ export async function setStatus(f: FormData) {
   // "Ready" → text the customer automatically
   const c: any = t.customers;
   if (to === "ready" && c?.phone && c?.sms_consent) {
-    const balance = Number(t.estimate ?? 0) - Number(t.deposit ?? 0);
+    // Deposit was paid in real dollars, so take it off the after-tax total.
+    const totalWithTax = Math.round(Number(t.estimate ?? 0) * (1 + Number(shop.tax_rate ?? 0.13)) * 100) / 100;
+    const balance = totalWithTax - Number(t.deposit ?? 0);
     const body = smsTemplates.ready(
       c.first_name ?? "there",
       deviceName(t),
       ticketLabel(shop.ticket_prefix, t.number),
       shop.name,
-      balance > 0 ? money(balance * (1 + Number(shop.tax_rate ?? 0.13))) : null
+      balance > 0 ? money(balance) : null
     );
     await logText(supabase, t.customer_id, id, c.phone, body, staff.id);
   }

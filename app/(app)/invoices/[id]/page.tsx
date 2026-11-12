@@ -89,8 +89,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
           </div>
           <R k="Paid" v={money(inv.paid)} />
           <div className="flex justify-between font-semibold text-brand-dark">
-            <span>Due</span>
-            <span>{money(due)}</span>
+            <span>{due < -0.004 ? "Change / credit owed" : "Due"}</span>
+            <span>{money(Math.abs(due))}</span>
           </div>
         </div>
       </section>

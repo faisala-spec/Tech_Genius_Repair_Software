@@ -34,7 +34,7 @@ If Day One isn't solid by Nov 26, tell the owner plainly: one more month of Repa
 - **Owner's own feature request:** a "talk to update" button — tech or front desk taps, speaks, and AI changes the ticket status, writes notes, or drafts a quote. Do this right after Day One.
 
 ## Current state (as of Nov 11, 2026)
-Built and pushed. Nov 11: `npm install`, `npm run build` (type checking ON, zero errors) and `npm run dev` all work; login screen loads at http://localhost:3000/login. Screens past login not clicked through yet (needs the database set up first).
+Built and pushed. Nov 11: `npm install`, `npm run build` (type checking ON, zero errors) and `npm run dev` all work; login screen loads at http://localhost:3000/login. Every screen clicked through in Edge (desktop + phone size) with a test ticket: check-in, status, notes, ready text, pickup + warranty, invoice + payment, print invoice/label, customer search/edit/new. Fixed: board overflow, deposit taken from DB (once per ticket), balance-after-tax in ready text, Toronto dates for warranty, "credit owed" instead of negative balance.
 - `app/` Next.js 15 App Router screens: login, home dashboard, tickets (board + list + new + detail with status buttons, notes, texting), customers (search by phone/name/email/ticket #, detail, new, edit), invoices (builder with HST/discount/deposit/payments, detail, void for owner/manager), print pages (`/print/invoice/[id]`, `/print/label/[id]`).
 - `lib/` Supabase server client, session/role helpers, formatting, Twilio sender (texts no-op until env vars exist).
 - `db/` SQL: `schema.sql`, `seed_techgenius.sql`, `002_app_functions.sql`, `003_import_customers.sql`, `004_add_staff.sql`. Tested on Postgres 16: runs clean, imports 9,276 customers, numbering starts at 1001, RLS hides all rows from a non-staff user.
@@ -42,12 +42,12 @@ Built and pushed. Nov 11: `npm install`, `npm run build` (type checking ON, zero
 - `next.config.mjs`: type checking is on; ESLint skipped until it's added. `npm audit` flags PostCSS inside Next 15 (build-time only); the fix needs Next 16, do it after Nov 27.
 
 Not done yet:
-- **Supabase**: owner chose Canada. New project "Tech Genius Software (Canada)" (ref `dsqnmdeersmkjojnwcij`, ca-central-1) created Nov 11, still EMPTY; local `.env.local` points at it. The old US project (ref `bnwobsaishumqwrodifx`, us-east-1, empty) is unused; delete it once the owner OKs. Next: run the SQL files in order (see README), upload `customers_clean.csv`, add the owner as staff, turn off public sign-ups.
+- **Supabase**: owner chose Canada. New project "Tech Genius Software (Canada)" (ref `dsqnmdeersmkjojnwcij`, ca-central-1) created Nov 11. Set up Nov 11: SQL files 001–002 + `005_security_fixes.sql` applied, 9,276 customers imported (253 archived, 413 no phone, matches the file), owner login `info@techgenius.ca` (staff role owner, temporary password given to the owner in chat; must change it). Import was done signed in as the owner via supabase-js, RLS on. Still to do by the owner in the dashboard: turn OFF "Allow new users to sign up" (no API for it); delete the old US project `bnwobsaishumqwrodifx` (paused Nov 11; MCP can't delete projects). Test records (customers named ZZTEST*, phone +1905555019x, their tickets/invoices) are still in the DB: remove them and reset counters to 1001 before go-live.
 - **Vercel**: project imported from GitHub; env vars `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` not confirmed set.
 - Twilio account/number not set up.
 
 ## Next steps, in order
-1. `npm install`, `npm run build`, `npm run dev`. Fix every error. Click through every screen.
+1. ~~`npm install`, `npm run build`, `npm run dev`. Fix every error. Click through every screen.~~ Done Nov 11.
 2. Settle the Supabase region, set up the database, import customers, create the owner login.
 3. Vercel env vars, deploy, owner tests on desktop and phone.
 4. Polish Day One (speed of check-in, printing on the QL-800, mobile layout).

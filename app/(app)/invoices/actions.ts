@@ -48,7 +48,16 @@ export async function createInvoice(f: FormData) {
   const t = totals(lines, Number(f.get("discount") ?? 0), rate);
   const ticketId = String(f.get("ticket_id") ?? "") || null;
   const customerId = String(f.get("customer_id") ?? "") || null;
-  const deposit = Number(f.get("deposit") ?? 0) || 0;
+  // Deposit comes from the ticket in the database (never from the browser),
+  // and only counts on the first invoice for that ticket.
+  let deposit = 0;
+  if (ticketId) {
+    const [{ data: tk }, { count: earlier }] = await Promise.all([
+      supabase.from("tickets").select("deposit").eq("id", ticketId).single(),
+      supabase.from("invoices").select("id", { count: "exact", head: true }).eq("ticket_id", ticketId).neq("status", "void"),
+    ]);
+    if (!earlier) deposit = round2(Number(tk?.deposit ?? 0));
+  }
   const payNow = Number(f.get("pay_amount") ?? 0) || 0;
   const method = String(f.get("pay_method") ?? "debit");
   if (!PAYMENT_METHODS.some((m) => m.key === method)) throw new Error("Unknown payment method");

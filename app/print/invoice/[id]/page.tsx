@@ -112,8 +112,8 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
           <L key={p.id} k={`${PAYMENT_METHODS.find((m) => m.key === p.method)?.label ?? p.method}${p.reference ? ` (${p.reference})` : ""}`} v={money(p.amount)} />
         ))}
         <div className="flex justify-between font-bold">
-          <span>Balance due</span>
-          <span>{money(due)}</span>
+          <span>{due < -0.004 ? "Change / credit owed" : "Balance due"}</span>
+          <span>{money(Math.abs(due))}</span>
         </div>
       </div>
 
