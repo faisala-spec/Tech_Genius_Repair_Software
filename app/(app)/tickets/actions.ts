@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/session";
-import { normalizePhone, ticketLabel, deviceName, money, STATUSES, torontoDatePlus } from "@/lib/format";
+import { normalizePhone, ticketLabel, deviceName, money, STATUSES, torontoDatePlus, cleanSearch, fullName } from "@/lib/format";
 import { sendSms, smsTemplates } from "@/lib/sms";
 
 const str = (f: FormData, k: string) => {
@@ -14,6 +14,46 @@ const num = (f: FormData, k: string) => {
   const v = str(f, k);
   return v === null ? null : Number(v.replace(/[^0-9.\-]/g, "")) || 0;
 };
+
+export type CustomerHit = { id: string; name: string; phone: string | null; email: string | null };
+export type PastDevice = { device_type: string; brand: string | null; model: string | null; imei_serial: string | null; color: string | null };
+
+/** Live search while typing on the check-in screen. */
+export async function searchCustomers(q: string): Promise<CustomerHit[]> {
+  const { supabase } = await requireStaff();
+  const term = cleanSearch(q ?? "");
+  if (term.length < 2) return [];
+  const digits = term.replace(/\D/g, "");
+  const words = term.split(/\s+/).filter(Boolean);
+  let query = supabase.from("customers").select("id, first_name, last_name, company, phone, email").eq("archived", false).limit(8);
+  if (digits.length >= 3 && digits.length === term.replace(/[\s()+-]/g, "").length) {
+    query = query.or(`phone.ilike.%${digits}%,phone_alt.ilike.%${digits}%`);
+  } else if (words.length > 1) {
+    query = query.ilike("first_name", `%${words[0]}%`).ilike("last_name", `%${words.at(-1)}%`);
+  } else {
+    query = query.or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,company.ilike.%${term}%,email.ilike.%${term}%`);
+  }
+  const { data } = await query;
+  return (data ?? []).map((c) => ({ id: c.id, name: fullName(c), phone: c.phone, email: c.email }));
+}
+
+/** Devices this customer brought in before, newest first, for one-tap reuse. */
+export async function customerDevices(customerId: string): Promise<PastDevice[]> {
+  const { supabase } = await requireStaff();
+  const { data } = await supabase
+    .from("tickets")
+    .select("device_type, brand, model, imei_serial, color")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  const seen = new Set<string>();
+  return (data ?? []).filter((d) => {
+    const k = `${d.brand}|${d.model}|${d.imei_serial}`.toLowerCase();
+    if (seen.has(k) || (!d.brand && !d.model)) return false;
+    seen.add(k);
+    return true;
+  });
+}
 
 export async function createTicket(f: FormData) {
   const { supabase, staff, shop } = await requireStaff();
@@ -82,7 +122,7 @@ export async function createTicket(f: FormData) {
   }
 
   revalidatePath("/tickets");
-  redirect(`/tickets/${t.id}?new=1`);
+  redirect(`/tickets/${t.id}?new=1${f.get("print_label") === "on" ? "&print=1" : ""}`);
 }
 
 export async function setStatus(f: FormData) {

@@ -26,8 +26,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <NavLinks />
         <div className="mt-auto border-t border-zinc-200 pt-4">
-          <p className="text-sm font-semibold text-zinc-900">{staff.full_name}</p>
-          <p className="text-xs text-zinc-500">{ROLE_LABEL[staff.role]}</p>
+          <Link href="/account" className="block rounded-lg hover:bg-zinc-50">
+            <p className="text-sm font-semibold text-zinc-900">{staff.full_name}</p>
+            <p className="text-xs text-zinc-500">{ROLE_LABEL[staff.role]} · My account</p>
+          </Link>
           <form action={signOut} className="mt-2">
             <button className="text-xs text-zinc-500 hover:text-zinc-900">Sign out</button>
           </form>
@@ -49,6 +51,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </form>
           <Link href="/tickets/new" className={`${ui.btn} md:hidden`}>
             + Ticket
+          </Link>
+          <Link href="/account" aria-label="My account" className="rounded-full p-1.5 text-zinc-600 hover:bg-zinc-100 md:hidden">
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21a8 8 0 10-16 0M12 13a5 5 0 100-10 5 5 0 000 10z" />
+            </svg>
           </Link>
         </header>
         <main className="mx-auto max-w-7xl p-4 md:p-6">{children}</main>

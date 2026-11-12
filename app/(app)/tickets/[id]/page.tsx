@@ -4,13 +4,14 @@ import { requireStaff } from "@/lib/session";
 import { STATUSES, fullName, deviceName, ticketLabel, dateTime, dateOnly, money, phonePretty, statusInfo } from "@/lib/format";
 import { ui } from "@/lib/ui";
 import StatusBadge from "@/components/StatusBadge";
+import PrintLabelButton from "@/components/PrintLabelButton";
 import { setStatus, addNote, textCustomer, updateTicket } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function TicketPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ new?: string; edit?: string }> }) {
+export default async function TicketPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ new?: string; edit?: string; print?: string }> }) {
   const { id } = await params;
-  const { new: isNew, edit } = await searchParams;
+  const { new: isNew, edit, print } = await searchParams;
   const { supabase, shop } = await requireStaff();
 
   const { data: t } = await supabase
@@ -33,10 +34,17 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     <div className="space-y-5">
       {isNew && (
         <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-          Ticket {label} created.
-          <Link href={`/print/label/${t.id}`} target="_blank" className={ui.btn}>
-            Print label
-          </Link>
+          <span>
+            Ticket {label} created.{print ? " Printing the label…" : ""}
+          </span>
+          <div className="flex gap-2">
+            <PrintLabelButton ticketId={t.id} auto={!!print} className={ui.btn}>
+              {print ? "Print again" : "Print label"}
+            </PrintLabelButton>
+            <Link href="/tickets/new" className={ui.btnGhost}>
+              Next customer
+            </Link>
+          </div>
         </div>
       )}
 
@@ -49,9 +57,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/print/label/${t.id}`} target="_blank" className={ui.btnGhost}>
-            Print label
-          </Link>
+          <PrintLabelButton ticketId={t.id} className={ui.btnGhost} />
           <Link href={`/invoices/new?ticket=${t.id}`} className={ui.btn}>
             Create invoice
           </Link>

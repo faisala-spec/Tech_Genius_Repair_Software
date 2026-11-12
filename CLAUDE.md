@@ -43,14 +43,15 @@ Built and pushed. Nov 11: `npm install`, `npm run build` (type checking ON, zero
 
 Not done yet:
 - **Supabase**: owner chose Canada. New project "Tech Genius Software (Canada)" (ref `dsqnmdeersmkjojnwcij`, ca-central-1) created Nov 11. Set up Nov 11: SQL files 001–002 + `005_security_fixes.sql` applied, 9,276 customers imported (253 archived, 413 no phone, matches the file), owner login `info@techgenius.ca` (staff role owner, temporary password given to the owner in chat; must change it). Import was done signed in as the owner via supabase-js, RLS on. Still to do by the owner in the dashboard: turn OFF "Allow new users to sign up" (no API for it); delete the old US project `bnwobsaishumqwrodifx` (paused Nov 11; MCP can't delete projects). Test records (customers named ZZTEST*, phone +1905555019x, their tickets/invoices) are still in the DB: remove them and reset counters to 1001 before go-live.
-- **Vercel**: project imported from GitHub; env vars `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` not confirmed set.
+- **Vercel**: team `faisala-spec` (`team_R6AKRdSSAltqTKMIklA2gNH9`), access approved for the MCP Nov 12. It had NO projects (the earlier "imported" note was wrong). Creating a git-linked project failed: the Vercel GitHub app isn't installed on `faisala-spec/Tech_Genius_Repair_Software`. Once the owner installs it: create project `tech-genius-repair-software`, framework nextjs, function region `yul1` (Montreal, keeps data in Canada), env vars `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` (values in `.env.local`).
+- Nov 12 added: `/account` (change password; checks current password first), fast check-in (`components/CheckInForm.tsx`: live customer search, past-device chips, tap chips for type/brand/problem, auto-print label), label printing via hidden same-site iframe (`components/PrintLabelButton.tsx`; `X-Frame-Options` is SAMEORIGIN for this), `docs/PRINTING.md` QL-800 setup. Ask the owner which 62 mm roll they use (label is 62 × 29 mm, fits DK-1209 and DK-2205).
 - Twilio account/number not set up.
 
 ## Next steps, in order
 1. ~~`npm install`, `npm run build`, `npm run dev`. Fix every error. Click through every screen.~~ Done Nov 11.
 2. Settle the Supabase region, set up the database, import customers, create the owner login.
 3. Vercel env vars, deploy, owner tests on desktop and phone.
-4. Polish Day One (speed of check-in, printing on the QL-800, mobile layout).
+4. Polish Day One (speed of check-in, printing on the QL-800, mobile layout). Check-in + label printing done Nov 12; still to test on the real QL-800 in the store.
 5. Twilio texting (Canadian number), then the talk-to-update button.
 6. After Nov 27: buybacks + IMEI check, inventory + MobileSentrix, accounting (cash, expenses, tech pay), AI voice calls, review requests, online booking, then multi-shop SaaS (sign-up, Stripe billing, RepairDesk importer for other shops).
 
