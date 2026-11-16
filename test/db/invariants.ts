@@ -66,6 +66,9 @@ async function checkShop(t: TestDb, shop: string) {
   const docTax = invs.filter((i: any) => !i.voided_at).reduce((a: number, i: any) => a + n(i.tax_cents), 0)
     - n((await q(`select coalesce(sum(tax_cents),0) s from credit_notes where shop_id = $1`))[0].s);
   expect(neg(await bal("hst_collected")), "HST collected vs documents").toBe(docTax);
+  // HST to claim back (ITCs) = HST on live expenses marked "claim".
+  const itcDocs = n((await q(`select coalesce(sum(hst_cents),0) s from expenses where shop_id = $1 and claim_itc and voided_at is null`))[0].s);
+  expect(await bal("hst_itc"), "HST paid (ITCs) vs expense receipts").toBe(itcDocs);
 
   // 9. Money accounts = money rows (by method), so nothing moves without a record.
   const byMethod = await q(`select method, sum(case when kind in ('payment','deposit') then amount_cents when kind in ('refund','deposit_refund') then -amount_cents else 0 end) s from payments where shop_id = $1 and method is not null group by method`);
@@ -81,7 +84,9 @@ async function extraMoney(t: TestDb, shop: string) {
   const has = async (table: string) => (await t.admin(`select to_regclass($1) as r`, [`public.${table}`]))[0].r !== null;
   let cash = 0, bank = 0, card = 0;
   if (await has("expenses")) {
-    const e = await t.admin(`select paid_from, sum(total_cents) s from expenses where shop_id = $1 and voided_at is null group by paid_from`, [shop]);
+    // Cash expenses: what left the drawer is the bill rounded to the nickel.
+    const roundingCol = (await t.admin(`select 1 from information_schema.columns where table_name = 'expenses' and column_name = 'cash_rounding_cents'`)).length > 0;
+    const e = await t.admin(`select paid_from, sum(total_cents ${roundingCol ? "- cash_rounding_cents" : ""}) s from expenses where shop_id = $1 and voided_at is null group by paid_from`, [shop]);
     cash -= n(e.find((r: any) => r.paid_from === "cash_drawer")?.s);
     bank -= n(e.find((r: any) => r.paid_from === "bank")?.s);
   }
