@@ -9,13 +9,18 @@ Repair-shop software for Tech Genius (cell phones, laptops, tablets, consoles, d
 
 Goals in the owner's words: very simple, nice, interactive; everything in one place; accounting and inventory matter a lot; repair tickets with full customer info; AI texts and AI voice follow-up so staff don't call customers manually; very secure, no data leaks; monthly running costs must be cheap.
 
-## Hard deadline
-**Cancel RepairDesk on Nov 27, 2026.** Day One version must be live and used in the store before then. Plan:
-- Nov 13–19 build and polish Day One screens
-- Nov 20–22 import real customers, check counts
-- Nov 23–26 run side by side with RepairDesk, staff use it for real tickets
-- Nov 27 switch over
-If Day One isn't solid by Nov 26, tell the owner plainly: one more month of RepairDesk is cheaper than losing data.
+## Deadline (changed Nov 16)
+Owner chose **exact accounting over speed**: he pays RepairDesk one more month. **Cutover is now ~Dec 27, 2026.** Approved plan (Nov 16), in order:
+1. Test harness (PGlite) + RLS hardening
+2. Double-entry ledger in Postgres (integer cents, immutable journal, all money via SECURITY DEFINER RPCs) + invoices/payments/deposits/credit notes/void
+3. Expenses (HST ITCs) + daily cash drawer + period lock
+4. Reports (P&L, balance sheet, HST return, cash, A/R, profit per repair)
+5. Rewire screens to the RPCs
+6. QuickBooks-style redesign: home "layout A" (actions + today's queue, then money), + Create menu, Expenses/Cash/Reports/Settings, light theme with dark switch
+7. Migrate Supabase (customers must stay 9,276), deploy
+8. Staff logins, QL-800 test, two weeks side by side with RepairDesk, cutover
+`docs/PLAN.md` is still the product plan. The accounting design (chart of accounts, posting rules, invariants) lives in `docs/ACCOUNTING.md`; keep it in step with `db/` as the ledger is built.
+If it isn't solid by ~Dec 20, tell the owner plainly: another month of RepairDesk is cheaper than wrong books.
 
 ## Decisions already made (don't re-ask)
 - **Tickets and invoices start fresh** at `T-1001` and invoice `1001`. Old RepairDesk tickets/invoices are NOT migrated (export isn't possible). Customers ARE migrated.
@@ -27,7 +32,13 @@ If Day One isn't solid by Nov 26, tell the owner plainly: one more month of Repa
 - Printers: Brother QL-800 labels (62 mm), normal Brother MFC for invoices. Desktop at the counter, must also work on phones.
 - Texts/calls: English only; tone friendly-casual but a bit professional; AI calls only 10 am–7 pm; outgoing calls only for now (inbound later, keep the option open); Google review text ~1 hour after pickup.
 - Buybacks: ID required for iPhone 16 and up, IMEI + contact details for lower models. They want a built-in blacklist/IMEI check (they currently look things up on sigw.com and similar). Buyback prices: their own trading website + GoRecell.ca for reference.
-- Accounting: accountant uses bank statements, no QuickBooks. Currently no tracking of rent/payroll; supplies tracked. Want cash tracking and **technician pay per repair**.
+- Accounting: accountant uses bank statements, no QuickBooks. Owner's top priority (Nov 16): "not a single penny here and there"; every number computed on the server.
+  - **HST: Regular method** (charge 13%, claim back the 13% paid on expenses as ITCs).
+  - **Technicians are hourly** (wages expense). NO per-repair commission (this replaces the earlier "tech pay per repair" note). **Outsourced repairs**: what we pay an outside shop is a cost of that repair (expense to "Outsourced repairs", linked to the ticket).
+  - **Cash drawer opened and closed daily**, over/short per staff member.
+  - Parts: periodic method (purchases expensed); invoice-line part cost is for profit-per-repair analytics only.
+- Home page: owner chose QuickBooks-style "layout A" (search + Create + quick actions + today's work queue first, money second). Light theme with a dark-mode switch.
+- It is a SaaS: keep everything multi-shop (shop_id + RLS), each module usable on its own.
 - Parts suppliers: MobileSentrix mainly, plus others.
 - Online booking: add it, low priority.
 - Not connected to the owner's separate online trading platform. Keep them separate for now.
