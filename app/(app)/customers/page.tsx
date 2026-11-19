@@ -121,7 +121,7 @@ export default async function CustomersPage({
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-surface">
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
@@ -196,7 +196,7 @@ export default async function CustomersPage({
 function PageLink({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
   if (disabled) return <span className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-300">{children}</span>;
   return (
-    <Link href={href} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-zinc-700 hover:border-brand">
+    <Link href={href} className="rounded-lg border border-zinc-300 bg-surface px-3 py-1.5 text-zinc-700 hover:border-brand">
       {children}
     </Link>
   );

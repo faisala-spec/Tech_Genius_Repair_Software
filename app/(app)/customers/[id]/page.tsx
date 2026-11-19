@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/session";
 import { fullName, phonePretty, money, dateOnly, deviceName, ticketLabel } from "@/lib/format";
 import { ui } from "@/lib/ui";
+import { cents } from "@/lib/money";
+import InvoiceStatus from "@/components/InvoiceStatus";
 import StatusBadge from "@/components/StatusBadge";
 import CustomerForm from "@/components/CustomerForm";
 import { updateCustomer } from "../actions";
@@ -19,7 +21,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
 
   const [{ data: tickets }, { data: invoices }, { data: texts }] = await Promise.all([
     supabase.from("tickets").select("id, number, status, brand, model, device_type, problem, created_at").eq("customer_id", id).order("created_at", { ascending: false }),
-    supabase.from("invoices").select("id, number, total, paid, status, created_at").eq("customer_id", id).order("created_at", { ascending: false }),
+    supabase.from("invoices").select("id, number, total_cents, status, issue_date, created_at").eq("customer_id", id).order("number", { ascending: false }),
     supabase.from("messages").select("id, body, direction, status, created_at").eq("customer_id", id).order("created_at", { ascending: false }).limit(20),
   ]);
 
@@ -104,7 +106,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
                     <span className="font-semibold">#{i.number}</span> · <span className="text-zinc-500">{dateOnly(i.created_at)}</span>
                   </span>
                   <span>
-                    {money(i.total)} · {i.status}
+                    {cents(i.total_cents)} <InvoiceStatus status={i.status} />
                   </span>
                 </Link>
               </li>

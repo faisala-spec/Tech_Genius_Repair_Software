@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireStaff } from "@/lib/session";
-import { STATUSES, fullName, deviceName, ticketLabel, dateTime, dateOnly, money, phonePretty, statusInfo } from "@/lib/format";
+import { requireStaff, canManage } from "@/lib/session";
+import { STATUSES, fullName, deviceName, ticketLabel, dateTime, dateOnly, phonePretty, statusInfo } from "@/lib/format";
+import { cents, centsToInput } from "@/lib/money";
+import InvoiceStatus from "@/components/InvoiceStatus";
+import { TakeDepositForm, RefundDepositForm } from "@/components/DepositForms";
 import { ui } from "@/lib/ui";
 import StatusBadge from "@/components/StatusBadge";
 import PrintLabelButton from "@/components/PrintLabelButton";
@@ -9,10 +12,11 @@ import { setStatus, addNote, textCustomer, updateTicket } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function TicketPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ new?: string; edit?: string; print?: string }> }) {
+export default async function TicketPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ new?: string; edit?: string; print?: string; deposit_error?: string; error?: string }> }) {
   const { id } = await params;
-  const { new: isNew, edit, print } = await searchParams;
-  const { supabase, shop } = await requireStaff();
+  const { new: isNew, edit, print, deposit_error, error } = await searchParams;
+  const { supabase, shop, staff } = await requireStaff();
+  const seesMoney = staff.role !== "technician";
 
   const { data: t } = await supabase
     .from("tickets")
@@ -21,17 +25,25 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     .single();
   if (!t) notFound();
 
-  const [{ data: events }, { data: invoices }, { data: techs }] = await Promise.all([
+  const [{ data: events }, { data: invoices }, { data: techs }, dep] = await Promise.all([
     supabase.from("ticket_events").select("*, staff(full_name)").eq("ticket_id", id).order("created_at", { ascending: false }),
-    supabase.from("invoices").select("id, number, total, paid, status").eq("ticket_id", id).order("created_at"),
+    supabase.from("invoices").select("id, number, total_cents, paid_cents, credited_cents, status").eq("ticket_id", id).order("number"),
     supabase.from("staff").select("id, full_name").eq("active", true).order("full_name"),
+    supabase.rpc("ticket_deposit_cents", { p_ticket_id: id }),
   ]);
+  const depositCents = Number(dep.data ?? 0); // from the ledger
 
   const c: any = t.customers;
   const label = ticketLabel(shop.ticket_prefix, t.number);
 
   return (
     <div className="space-y-5">
+      {deposit_error && (
+        <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          The ticket was saved, but the deposit was <b>not</b> recorded: {deposit_error}. Use "Take a deposit" below once it's sorted.
+        </p>
+      )}
+      {error === "amount" && <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Estimate must be an amount like 189 or 189.99.</p>}
       {isNew && (
         <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
           <span>
@@ -58,9 +70,11 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         </div>
         <div className="flex flex-wrap gap-2">
           <PrintLabelButton ticketId={t.id} className={ui.btnGhost} />
-          <Link href={`/invoices/new?ticket=${t.id}`} className={ui.btn}>
-            Create invoice
-          </Link>
+          {seesMoney && (
+            <Link href={`/invoices/new?ticket=${t.id}`} className={ui.btn}>
+              Create invoice
+            </Link>
+          )}
         </div>
       </div>
 
@@ -78,7 +92,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               <button
                 disabled={t.status === s.key}
                 className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
-                  t.status === s.key ? "border-brand bg-brand text-white" : "border-zinc-300 bg-white text-zinc-700 hover:border-brand"
+                  t.status === s.key ? "border-brand bg-brand text-white" : "border-zinc-300 bg-surface text-zinc-700 hover:border-brand"
                 }`}
               >
                 {s.label}
@@ -106,8 +120,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
                 <Edit label="Model" name="model" v={t.model} />
                 <Edit label="IMEI / serial" name="imei_serial" v={t.imei_serial} />
                 <Edit label="Problem" name="problem" v={t.problem} />
-                <Edit label="Estimate ($)" name="estimate" v={t.estimate} />
-                <Edit label="Deposit ($)" name="deposit" v={t.deposit} />
+                <Edit label="Estimate ($, before tax)" name="estimate" v={t.estimate_cents != null ? centsToInput(t.estimate_cents) : ""} />
                 <div>
                   <label className={ui.label}>Technician</label>
                   <select name="technician_id" defaultValue={t.technician_id ?? ""} className={ui.input}>
@@ -131,8 +144,8 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
                 <Row k="Left with us" v={t.accessories} />
                 <Row k="Condition on arrival" v={t.condition_notes} />
                 <Row k="Technician" v={(t as any).technician?.full_name ?? "Not assigned"} />
-                <Row k="Estimate" v={t.estimate != null ? `${money(t.estimate)} + tax` : null} />
-                <Row k="Deposit paid" v={money(t.deposit)} />
+                <Row k="Estimate" v={t.estimate_cents != null ? `${cents(t.estimate_cents)} + tax` : null} />
+                <Row k="Deposit held" v={cents(depositCents)} />
                 {t.warranty_until && <Row k="Warranty until" v={dateOnly(t.warranty_until)} />}
               </dl>
             )}
@@ -183,18 +196,32 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
             )}
           </section>
 
+          {/* Deposit */}
+          {!["picked_up", "cancelled"].includes(t.status) || depositCents > 0 ? (
+            <section className={`${ui.card} space-y-3`}>
+              <div className="flex items-baseline justify-between">
+                <h2 className={ui.h2}>Deposit</h2>
+                <span className="text-lg font-bold">{cents(depositCents)}</span>
+              </div>
+              <p className={ui.muted}>Held for this repair. It comes off the invoice automatically.</p>
+              {!["picked_up", "cancelled"].includes(t.status) && <TakeDepositForm ticketId={t.id} />}
+              {canManage(staff) && depositCents > 0 && <RefundDepositForm ticketId={t.id} />}
+            </section>
+          ) : null}
+
           {/* Invoices */}
+          {seesMoney && (
           <section className={ui.card}>
             <h2 className={`${ui.h2} mb-2`}>Invoices</h2>
             {(invoices ?? []).length ? (
               <ul className="space-y-1 text-sm">
-                {invoices!.map((i) => (
-                  <li key={i.id} className="flex justify-between">
+                {invoices!.map((i: any) => (
+                  <li key={i.id} className="flex items-center justify-between gap-2">
                     <Link href={`/invoices/${i.id}`} className={ui.link}>
                       #{i.number}
                     </Link>
-                    <span>
-                      {money(i.total)} · {i.status}
+                    <span className="flex items-center gap-2">
+                      {cents(i.total_cents)} <InvoiceStatus status={i.status} />
                     </span>
                   </li>
                 ))}
@@ -203,6 +230,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               <p className={ui.muted}>No invoice yet.</p>
             )}
           </section>
+          )}
         </div>
       </div>
     </div>

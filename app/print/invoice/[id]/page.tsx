@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/session";
-import { fullName, money, dateTime, phonePretty, ticketLabel, PAYMENT_METHODS } from "@/lib/format";
+import { fullName, dateOnly, phonePretty, ticketLabel, methodLabel, PAYMENT_KIND_LABEL } from "@/lib/format";
+import { cents } from "@/lib/money";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -15,13 +16,14 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
     .eq("id", id)
     .single();
   if (!inv) notFound();
-  const [{ data: items }, { data: payments }] = await Promise.all([
-    supabase.from("invoice_items").select("*").eq("invoice_id", id),
-    supabase.from("payments").select("*").eq("invoice_id", id).order("created_at"),
+  const [{ data: items }, { data: payments }, { data: credits }] = await Promise.all([
+    supabase.from("invoice_items").select("id, line_no, description, imei_serial, qty, unit_price_cents, gross_cents, tax_code").eq("invoice_id", id).order("line_no"),
+    supabase.from("payments").select("id, kind, method, amount_cents, reference").eq("invoice_id", id).order("created_at"),
+    supabase.from("credit_notes").select("id, number, total_cents").eq("invoice_id", id).order("number"),
   ]);
   const c: any = inv.customers;
   const t: any = inv.tickets;
-  const due = Number(inv.total) - Number(inv.paid);
+  const due = Number(inv.total_cents) - Number(inv.paid_cents) - Number(inv.credited_cents);
 
   return (
     <div className="mx-auto max-w-3xl bg-white p-8 text-sm text-zinc-900 print:p-0">
@@ -52,7 +54,7 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
           <p className="mt-2">
             <b>#{inv.number}</b>
           </p>
-          <p>{dateTime(inv.created_at)}</p>
+          <p>{dateOnly(inv.issue_date)}</p>
           {t && <p>Ticket {ticketLabel(shop.ticket_prefix, t.number)}</p>}
         </div>
       </div>
@@ -82,38 +84,49 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
             <th className="py-2">Item</th>
             <th className="py-2 text-right">Qty</th>
             <th className="py-2 text-right">Price</th>
-            <th className="py-2 text-right">Total</th>
+            <th className="py-2 text-right">Amount</th>
           </tr>
         </thead>
         <tbody>
-          {(items ?? []).map((i) => (
+          {(items ?? []).map((i: any) => (
             <tr key={i.id} className="border-b border-zinc-200">
               <td className="py-2">
                 {i.description}
                 {i.imei_serial && <div className="text-xs text-zinc-500">IMEI/serial: {i.imei_serial}</div>}
+                {i.tax_code === "EXEMPT" && <div className="text-xs text-zinc-500">No tax</div>}
               </td>
-              <td className="py-2 text-right">{Number(i.qty)}</td>
-              <td className="py-2 text-right">{money(i.unit_price)}</td>
-              <td className="py-2 text-right">{money(i.line_total)}</td>
+              <td className="py-2 text-right">{i.qty}</td>
+              <td className="py-2 text-right">{cents(i.unit_price_cents)}</td>
+              <td className="py-2 text-right">{cents(i.gross_cents)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="ml-auto mt-4 w-64 space-y-1">
-        <L k="Subtotal" v={money(inv.subtotal)} />
-        {Number(inv.discount) > 0 && <L k="Discount" v={`− ${money(inv.discount)}`} />}
-        <L k={`${shop.tax_name ?? "HST"}`} v={money(inv.tax)} />
+      <div className="ml-auto mt-4 w-72 space-y-1">
+        <L k="Subtotal" v={cents(inv.subtotal_cents)} />
+        {Number(inv.discount_cents) > 0 && <L k="Discount" v={`− ${cents(inv.discount_cents)}`} />}
+        <L k={`${inv.tax_name} ${(Number(inv.tax_rate) * 100).toFixed(0)}%`} v={cents(inv.tax_cents)} />
         <div className="flex justify-between border-t border-zinc-900 pt-1 text-base font-bold">
           <span>Total</span>
-          <span>{money(inv.total)}</span>
+          <span>{cents(inv.total_cents)}</span>
         </div>
-        {(payments ?? []).map((p) => (
-          <L key={p.id} k={`${PAYMENT_METHODS.find((m) => m.key === p.method)?.label ?? p.method}${p.reference ? ` (${p.reference})` : ""}`} v={money(p.amount)} />
+        {(credits ?? []).map((cn: any) => (
+          <L key={cn.id} k={`Credit note CN-${cn.number}`} v={`− ${cents(cn.total_cents)}`} />
         ))}
+        {(payments ?? []).map((p: any) => {
+          const back = p.kind === "refund" || p.kind === "deposit_unapplied";
+          return (
+            <L
+              key={p.id}
+              k={`${PAYMENT_KIND_LABEL[p.kind] ?? p.kind}${p.method ? ` · ${methodLabel(p.method)}` : ""}${p.reference ? ` (${p.reference})` : ""}`}
+              v={`${back ? "+ " : "− "}${cents(p.amount_cents)}`}
+            />
+          );
+        })}
         <div className="flex justify-between font-bold">
-          <span>{due < -0.004 ? "Change / credit owed" : "Balance due"}</span>
-          <span>{money(Math.abs(due))}</span>
+          <span>Balance due</span>
+          <span>{cents(due)}</span>
         </div>
       </div>
 
@@ -136,9 +149,9 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
 
 function L({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between gap-3">
       <span>{k}</span>
-      <span>{v}</span>
+      <span className="whitespace-nowrap">{v}</span>
     </div>
   );
 }

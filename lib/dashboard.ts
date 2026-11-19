@@ -96,53 +96,10 @@ function periodRangeFull(key: PeriodKey, now: number): Range {
   return { key: "30d", start, end, prevStart: dayStart(-59), prevEnd: start, buckets: dayBuckets(start, end), compareLabel: "vs the 30 days before" };
 }
 
-// ───────── Inputs (shapes of the rows the page loads) ─────────
-export type InvoiceRow = {
-  created_at: string;
-  status: string;
-  subtotal: number | string;
-  discount: number | string;
-  tax: number | string;
-  total: number | string;
-  paid: number | string;
-  invoice_items: { qty: number | string; unit_cost: number | string | null }[] | null;
-  tickets: { technician_id: string | null } | null;
-};
-export type PaymentRow = { created_at: string; method: string; amount: number | string };
-export type TicketRow = {
-  id: string;
-  status: string;
-  created_at: string;
-  picked_up_at: string | null;
-  technician_id: string | null;
-  device_type: string;
-  problem: string;
-};
-
-const n = (v: unknown) => Number(v) || 0;
-const r2 = (v: number) => Math.round(v * 100) / 100;
-const inRange = (iso: string | null, a: number, b: number) => {
-  if (!iso) return false;
-  const t = Date.parse(iso);
-  return t >= a && t < b;
-};
-
-function money(inv: InvoiceRow) {
-  const revenue = n(inv.subtotal) - n(inv.discount);
-  const cogs = (inv.invoice_items ?? []).reduce((a, i) => a + n(i.qty) * n(i.unit_cost), 0);
-  return { revenue, cogs, tax: n(inv.tax) };
-}
-
-function sums(invoices: InvoiceRow[], a: number, b: number) {
-  const list = invoices.filter((i) => i.status !== "void" && inRange(i.created_at, a, b));
-  let revenue = 0, cogs = 0, tax = 0;
-  for (const inv of list) {
-    const m = money(inv);
-    revenue += m.revenue;
-    cogs += m.cogs;
-    tax += m.tax;
-  }
-  return { revenue: r2(revenue), cogs: r2(cogs), profit: r2(revenue - cogs), tax: r2(tax), count: list.length };
+/** The range as Toronto calendar dates (YYYY-MM-DD, inclusive), which is what the database reports take. */
+export function rangeDates(r: Range) {
+  const d = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(ms));
+  return { from: d(r.start), to: d(r.end - 1), prevFrom: d(r.prevStart), prevTo: d(r.prevEnd - 1) };
 }
 
 /** % change, or null when there's nothing to compare against. */
@@ -151,56 +108,23 @@ export function change(now: number, before: number) {
   return Math.round(((now - before) / Math.abs(before)) * 100);
 }
 
-export function buildDashboard(
-  range: Range,
-  data: { invoices: InvoiceRow[]; payments: PaymentRow[]; tickets: TicketRow[]; openTickets: TicketRow[]; receivable: { total: number | string; paid: number | string }[] },
-  now = Date.now()
-) {
-  const cur = sums(data.invoices, range.start, range.end);
-  const prev = sums(data.invoices, range.prevStart, range.prevEnd);
+// ───────── Ticket numbers (money comes from the database: dashboard_money) ─────────
+export type TicketRow = { id: string; status: string; created_at: string; picked_up_at: string | null; device_type: string; problem: string };
 
-  // Chart series
-  const series = range.buckets.map((b) => {
-    const s = sums(data.invoices, b.start, b.end);
-    return { label: b.label, revenue: s.revenue, profit: s.profit, count: s.count, future: b.start > now };
-  });
+const inRange = (iso: string | null, a: number, b: number) => {
+  if (!iso) return false;
+  const t = Date.parse(iso);
+  return t >= a && t < b;
+};
 
-  // Payments taken in the period, by method (refunds are negative amounts)
-  const byMethod: Record<string, number> = {};
-  let refunds = 0;
-  for (const p of data.payments) {
-    if (!inRange(p.created_at, range.start, range.end)) continue;
-    byMethod[p.method] = r2((byMethod[p.method] ?? 0) + n(p.amount));
-    if (n(p.amount) < 0) refunds += -n(p.amount);
-  }
-  const collected = r2(Object.values(byMethod).reduce((a, v) => a + v, 0));
-
-  // Tickets
-  const created = data.tickets.filter((t) => inRange(t.created_at, range.start, range.end));
-  const completed = data.tickets.filter((t) => t.status === "picked_up" && inRange(t.picked_up_at, range.start, range.end));
+export function ticketStats(range: Range, tickets: TicketRow[], open: TicketRow[], now = Date.now()) {
+  const created = tickets.filter((t) => inRange(t.created_at, range.start, range.end));
+  const completed = tickets.filter((t) => t.status === "picked_up" && inRange(t.picked_up_at, range.start, range.end));
   const turnaround = completed.length
     ? Math.round((completed.reduce((a, t) => a + (Date.parse(t.picked_up_at!) - Date.parse(t.created_at)), 0) / completed.length / DAY) * 10) / 10
     : null;
   const openByStatus: Record<string, number> = {};
-  for (const t of data.openTickets) openByStatus[t.status] = (openByStatus[t.status] ?? 0) + 1;
-  const overdue = data.openTickets.filter((t) => now - Date.parse(t.created_at) > 7 * DAY && t.status !== "ready");
-  const notPickedUp = data.openTickets.filter((t) => t.status === "ready");
-
-  // Technicians: repairs finished in the period + revenue on their tickets' invoices
-  const techs: Record<string, { completed: number; revenue: number }> = {};
-  for (const t of completed) {
-    const k = t.technician_id ?? "none";
-    techs[k] = techs[k] ?? { completed: 0, revenue: 0 };
-    techs[k].completed += 1;
-  }
-  for (const inv of data.invoices) {
-    if (inv.status === "void" || !inRange(inv.created_at, range.start, range.end) || !inv.tickets) continue;
-    const k = inv.tickets.technician_id ?? "none";
-    techs[k] = techs[k] ?? { completed: 0, revenue: 0 };
-    techs[k].revenue = r2(techs[k].revenue + money(inv).revenue);
-  }
-
-  // Most common repairs checked in during the period
+  for (const t of open) openByStatus[t.status] = (openByStatus[t.status] ?? 0) + 1;
   const repairs: Record<string, number> = {};
   for (const t of created) {
     for (const part of (t.problem || "Other").split(",").map((s) => s.trim()).filter(Boolean)) {
@@ -208,36 +132,13 @@ export function buildDashboard(
       repairs[k] = (repairs[k] ?? 0) + 1;
     }
   }
-  const topRepairs = Object.entries(repairs).sort((a, b) => b[1] - a[1]).slice(0, 6);
-
-  const owed = r2(data.receivable.reduce((a, i) => a + Math.max(0, n(i.total) - n(i.paid)), 0));
-
   return {
-    revenue: cur.revenue,
-    revenueChange: change(cur.revenue, prev.revenue),
-    cogs: cur.cogs,
-    profit: cur.profit,
-    profitChange: change(cur.profit, prev.profit),
-    margin: cur.revenue ? Math.round((cur.profit / cur.revenue) * 100) : null,
-    tax: cur.tax,
-    invoiceCount: cur.count,
-    avgSale: cur.count ? r2(cur.revenue / cur.count) : 0,
-    collected,
-    byMethod,
-    refunds: r2(refunds),
-    series,
     created: created.length,
-    createdChange: change(created.length, data.tickets.filter((t) => inRange(t.created_at, range.prevStart, range.prevEnd)).length),
+    createdBefore: tickets.filter((t) => inRange(t.created_at, range.prevStart, range.prevEnd)).length,
     completed: completed.length,
     turnaround,
     openByStatus,
-    openCount: data.openTickets.length,
-    overdue,
-    notPickedUp,
-    techs,
-    topRepairs,
-    owed,
-    owedCount: data.receivable.filter((i) => n(i.total) - n(i.paid) > 0.004).length,
+    overdue: open.filter((t) => now - Date.parse(t.created_at) > 7 * DAY && t.status !== "ready"),
+    topRepairs: Object.entries(repairs).sort((a, b) => b[1] - a[1]).slice(0, 6),
   };
 }
-export type Dashboard = ReturnType<typeof buildDashboard>;

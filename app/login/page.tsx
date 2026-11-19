@@ -5,7 +5,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { error } = await searchParams;
   return (
     <main className="flex min-h-screen items-center justify-center bg-brand-soft p-4">
-      <form action={signIn} className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-8 shadow-lg">
+      <form action={signIn} className="w-full max-w-sm space-y-4 rounded-2xl bg-surface p-8 shadow-lg">
         <div className="flex flex-col items-center gap-2">
           <img src="/brand/techgenius-logo.png" alt="Tech Genius" className="h-24 w-auto" />
           <p className={ui.muted}>Sign in to continue</p>

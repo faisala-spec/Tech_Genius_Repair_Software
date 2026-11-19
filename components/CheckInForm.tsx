@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { createTicket, searchCustomers, customerDevices, type CustomerHit, type PastDevice } from "@/app/(app)/tickets/actions";
-import { DEVICE_TYPES, phonePretty } from "@/lib/format";
+import { DEVICE_TYPES, PAYMENT_METHODS, phonePretty } from "@/lib/format";
 import { ui } from "@/lib/ui";
 
 const BRANDS: Record<string, string[]> = {
@@ -27,15 +27,26 @@ const PROBLEMS: Record<string, string[]> = {
 
 type Tech = { id: string; full_name: string };
 
+const MONEY_ERRORS: Record<string, string> = {
+  amount: "Check the estimate and deposit: use amounts like 189 or 189.99.",
+  drawer: "Cash deposit: open the cash drawer first (Cash drawer → Open), or pick another payment method.",
+  nickel: "Cash has no pennies: make the cash deposit end in 0 or 5 cents.",
+};
+
 export default function CheckInForm({
   techs,
   initialCustomer,
-  showError,
+  error,
+  drawerOpen,
 }: {
   techs: Tech[];
   initialCustomer: CustomerHit | null;
-  showError: boolean;
+  error?: string;
+  drawerOpen: boolean;
 }) {
+  const showError = error === "customer";
+  const [depositMethod, setDepositMethod] = useState("debit");
+  const [key] = useState(() => crypto.randomUUID());
   // Customer
   const [customer, setCustomer] = useState<CustomerHit | null>(initialCustomer);
   const [q, setQ] = useState("");
@@ -121,6 +132,7 @@ export default function CheckInForm({
       <input type="hidden" name="customer_id" value={customer?.id ?? ""} />
       <input type="hidden" name="device_type" value={deviceType} />
       <input type="hidden" name="problem" value={problem} />
+      <input type="hidden" name="idempotency_key" value={key} />
 
       {/* 1. Customer */}
       <section className={ui.card}>
@@ -260,9 +272,23 @@ export default function CheckInForm({
       {/* 4. Price */}
       <section className={ui.card}>
         <h2 className={`${ui.h2} mb-3`}>4. Price and technician</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Estimate ($, before tax)" name="estimate" inputMode="decimal" />
-          <Field label="Deposit paid ($)" name="deposit" inputMode="decimal" />
+        {error && MONEY_ERRORS[error] && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{MONEY_ERRORS[error]}</p>}
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Field label="Estimate ($, before tax)" name="estimate" inputMode="decimal" placeholder="optional" />
+          <Field label="Deposit taken ($)" name="deposit" inputMode="decimal" placeholder="0.00" />
+          <div>
+            <label className={ui.label} htmlFor="deposit_method">
+              Deposit paid by
+            </label>
+            <select id="deposit_method" name="deposit_method" value={depositMethod} onChange={(e) => setDepositMethod(e.target.value)} className={ui.input}>
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            {depositMethod === "cash" && !drawerOpen && <p className="mt-1 text-xs text-red-700">The cash drawer is closed. Open it first.</p>}
+          </div>
           <div>
             <label className={ui.label}>Technician</label>
             <select name="technician_id" className={ui.input} defaultValue="">
@@ -298,7 +324,7 @@ export default function CheckInForm({
         </div>
       </section>
 
-      <div className="sticky bottom-20 z-10 flex items-center justify-end gap-2 rounded-xl border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur md:bottom-4">
+      <div className="sticky bottom-20 z-10 flex items-center justify-end gap-2 rounded-xl border border-zinc-200 bg-surface/95 p-3 shadow-sm backdrop-blur md:bottom-4">
         <p className="mr-auto hidden truncate text-sm text-zinc-500 sm:block">
           {customer?.name ?? "New customer"} · {[brand, model].filter(Boolean).join(" ") || deviceType} · {problem || "no problem picked yet"}
         </p>
@@ -315,7 +341,7 @@ export default function CheckInForm({
 
 function chip(active: boolean, small = false) {
   return `rounded-full border px-3 ${small ? "py-1 text-xs" : "py-1.5 text-sm"} font-medium transition ${
-    active ? "border-brand bg-brand text-white" : "border-zinc-300 bg-white text-zinc-700 hover:border-brand"
+    active ? "border-brand bg-brand text-white" : "border-zinc-300 bg-surface text-zinc-700 hover:border-brand"
   }`;
 }
 

@@ -9,11 +9,12 @@ export default async function NewTicket({ searchParams }: { searchParams: Promis
   const { customer, error } = await searchParams;
   const { supabase } = await requireStaff();
 
-  const [{ data: c }, { data: techs }] = await Promise.all([
+  const [{ data: c }, { data: techs }, { data: drawer }] = await Promise.all([
     customer
       ? supabase.from("customers").select("id, first_name, last_name, company, phone, email").eq("id", customer).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from("staff").select("id, full_name").eq("active", true).order("full_name"),
+    supabase.rpc("drawer_status"),
   ]);
 
   return (
@@ -22,7 +23,8 @@ export default async function NewTicket({ searchParams }: { searchParams: Promis
       <CheckInForm
         techs={techs ?? []}
         initialCustomer={c ? { id: c.id, name: fullName(c), phone: c.phone, email: c.email } : null}
-        showError={error === "customer"}
+        error={error}
+        drawerOpen={!!(drawer as any)?.open}
       />
     </div>
   );

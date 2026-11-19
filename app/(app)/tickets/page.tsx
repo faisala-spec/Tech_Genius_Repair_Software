@@ -46,7 +46,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
       </div>
 
       {asList ? (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-surface">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
               <tr>
@@ -96,11 +96,11 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
               <section key={s.key} className="w-72 shrink-0 rounded-xl bg-zinc-100/70 p-3">
                 <h2 className="mb-3 flex items-center justify-between text-sm font-semibold text-zinc-700">
                   {s.label}
-                  <span className="rounded-full bg-white px-2 text-xs text-zinc-500">{col.length}</span>
+                  <span className="rounded-full bg-surface px-2 text-xs text-zinc-500">{col.length}</span>
                 </h2>
                 <div className="space-y-2">
                   {col.map((t: any) => (
-                    <div key={t.id} className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
+                    <div key={t.id} className="rounded-lg border border-zinc-200 bg-surface p-3 shadow-sm">
                       <Link href={`/tickets/${t.id}`} className="block">
                         <p className="text-xs font-semibold text-brand-dark">{ticketLabel(shop.ticket_prefix, t.number)}</p>
                         <p className="text-sm font-semibold text-zinc-900">{deviceName(t)}</p>
@@ -127,7 +127,7 @@ function Filter({ href, label, active }: { href: string; label: string; active: 
   return (
     <Link
       href={href}
-      className={`rounded-full px-3 py-1 text-xs font-semibold ${active ? "bg-brand text-white" : "bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-50"}`}
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${active ? "bg-brand text-white" : "bg-surface text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-50"}`}
     >
       {label}
     </Link>

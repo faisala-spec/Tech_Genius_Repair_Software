@@ -1,16 +1,64 @@
 @import "tailwindcss";
 
+/* Dark mode follows a class on <html> (set by the theme switch), not the operating system alone. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-brand: #e28e34;
   --color-brand-dark: #c4741d;
   --color-brand-soft: #fdf3e8;
+  --color-surface: #ffffff;   /* cards, inputs, menus */
+  --color-canvas: #f6f6f7;    /* page background */
+  --color-chart-sales: #e28e34; /* validated pair (dataviz validator, light) */
+  --color-chart-costs: #2f6db5;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 html,
 body {
-  background: #f7f7f8;
-  color: #1c1c1e;
+  background: var(--color-canvas);
+  color: var(--color-zinc-900);
+}
+
+/* Dark theme: same layout, the grey scale is flipped and the soft status colours get dark versions.
+   Text on orange buttons stays white (we never touch --color-white). */
+.dark {
+  color-scheme: dark;
+  --color-surface: #18181b;
+  --color-canvas: #0f0f11;
+  --color-chart-sales: #cf7a20; /* validated pair (dark) */
+  --color-chart-costs: #5a8fd8;
+  --color-brand-soft: #3a2914;
+  --color-brand-dark: #f0a453;
+  --color-zinc-50: #1d1d21;
+  --color-zinc-100: #26262b;
+  --color-zinc-200: #34343a;
+  --color-zinc-300: #46464e;
+  --color-zinc-400: #6b6b74;
+  --color-zinc-500: #a1a1aa;
+  --color-zinc-600: #c4c4cb;
+  --color-zinc-700: #dadade;
+  --color-zinc-800: #ececef;
+  --color-zinc-900: #f8f8fa;
+  --color-green-50: #102419;
+  --color-green-100: #143321;
+  --color-green-200: #1d4a2f;
+  --color-green-800: #86efac;
+  --color-red-50: #2a1214;
+  --color-red-100: #3b171b;
+  --color-red-200: #572127;
+  --color-red-300: #7a2c33;
+  --color-red-700: #fca5a5;
+  --color-amber-100: #36290d;
+  --color-amber-800: #fcd34d;
+  --color-sky-100: #0d2836;
+  --color-sky-800: #7dd3fc;
+  --color-slate-100: #23262d;
+  --color-slate-700: #cbd5e1;
+  --color-purple-100: #2a1838;
+  --color-purple-800: #d8b4fe;
+  --color-blue-100: #142446;
+  --color-blue-800: #93c5fd;
 }
 
 @media print {

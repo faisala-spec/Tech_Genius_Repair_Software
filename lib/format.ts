@@ -18,14 +18,38 @@ export function statusInfo(key: string) {
 
 export const DEVICE_TYPES = ["Phone", "Tablet", "Laptop", "Desktop", "Console", "Watch", "Drone", "Printer", "Other"];
 
+// Must match the payment_method type in db/008_ledger.sql. (Store credit comes later, with its own account.)
 export const PAYMENT_METHODS = [
   { key: "debit", label: "Debit" },
   { key: "credit", label: "Credit card" },
   { key: "cash", label: "Cash" },
   { key: "etransfer", label: "e-Transfer" },
-  { key: "store_credit", label: "Store credit" },
+] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]["key"];
+export const methodLabel = (k: string | null | undefined) => PAYMENT_METHODS.find((m) => m.key === k)?.label ?? (k ? String(k) : "Deposit");
+
+// What a sold line is, so sales land in the right account (Sales – Repairs / Devices / Accessories / Other).
+export const LINE_CATEGORIES = [
+  { key: "repair", label: "Repair" },
+  { key: "device", label: "Device" },
+  { key: "accessory", label: "Accessory" },
   { key: "other", label: "Other" },
-];
+] as const;
+
+export const PAYMENT_KIND_LABEL: Record<string, string> = {
+  payment: "Payment",
+  deposit: "Deposit taken",
+  deposit_applied: "Deposit used",
+  deposit_unapplied: "Deposit returned to ticket",
+  refund: "Refund",
+  deposit_refund: "Deposit refunded",
+};
+
+/** Supabase/Postgres error → a sentence a person can act on (the database functions already speak plainly). */
+export function friendlyError(e: unknown): string {
+  const msg = (e as any)?.message ?? String(e);
+  return String(msg).replace(/^.*?ERROR:\s*/i, "").replace(/\s+\(SQLSTATE.*$/, "").slice(0, 300);
+}
 
 const TZ = "America/Toronto";
 

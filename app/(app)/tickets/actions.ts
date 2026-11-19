@@ -3,17 +3,24 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/session";
-import { normalizePhone, ticketLabel, deviceName, money, STATUSES, torontoDatePlus, cleanSearch, fullName } from "@/lib/format";
+import { normalizePhone, ticketLabel, deviceName, STATUSES, torontoDatePlus, cleanSearch, fullName, friendlyError } from "@/lib/format";
+import { toCents, cents } from "@/lib/money";
 import { sendSms, smsTemplates } from "@/lib/sms";
 
 const str = (f: FormData, k: string) => {
   const v = String(f.get(k) ?? "").trim();
   return v === "" ? null : v;
 };
-const num = (f: FormData, k: string) => {
+/** Optional dollar field → cents (null when blank). Throws on nonsense like "12.345" or "abc". */
+const optCents = (f: FormData, k: string) => {
   const v = str(f, k);
-  return v === null ? null : Number(v.replace(/[^0-9.\-]/g, "")) || 0;
+  if (v === null) return null;
+  const c = toCents(v);
+  if (c === null) throw new Error(`"${v}" isn't a valid dollar amount`);
+  return c;
 };
+
+export type FormState = { error?: string; ok?: string } | undefined;
 
 export type CustomerHit = { id: string; name: string; phone: string | null; email: string | null };
 export type PastDevice = { device_type: string; brand: string | null; model: string | null; imei_serial: string | null; color: string | null };
@@ -58,6 +65,22 @@ export async function customerDevices(customerId: string): Promise<PastDevice[]>
 export async function createTicket(f: FormData) {
   const { supabase, staff, shop } = await requireStaff();
 
+  // 0. Money typed at check-in: check it before anything is saved.
+  let estimateCents: number | null;
+  let depositCents: number;
+  try {
+    estimateCents = optCents(f, "estimate");
+    depositCents = optCents(f, "deposit") ?? 0;
+  } catch {
+    redirect("/tickets/new?error=amount");
+  }
+  const depositMethod = str(f, "deposit_method") ?? "debit";
+  if (depositCents > 0 && depositMethod === "cash") {
+    const { data: drawer } = await supabase.rpc("drawer_status");
+    if (!(drawer as any)?.open) redirect("/tickets/new?error=drawer");
+    if (depositCents % 5 !== 0) redirect("/tickets/new?error=nickel");
+  }
+
   // 1. Customer: picked from search, or created right here
   let customerId = str(f, "customer_id");
   if (!customerId) {
@@ -95,8 +118,7 @@ export async function createTicket(f: FormData) {
       problem: str(f, "problem") ?? "Diagnosis",
       condition_notes: str(f, "condition_notes"),
       accessories: str(f, "accessories"),
-      estimate: num(f, "estimate"),
-      deposit: num(f, "deposit") ?? 0,
+      estimate_cents: estimateCents,
       created_by: staff.id,
       technician_id: str(f, "technician_id"),
     })
@@ -112,6 +134,19 @@ export async function createTicket(f: FormData) {
     staff_id: staff.id,
   });
 
+  // 2b. Deposit goes into the books now, on the day it's taken, with how it was paid.
+  let depositError = "";
+  if (depositCents > 0) {
+    const { error: depErr } = await supabase.rpc("record_deposit", {
+      p_ticket_id: t.id,
+      p_method: depositMethod,
+      p_amount_cents: depositCents,
+      p_reference: null,
+      p_idempotency_key: str(f, "idempotency_key") ?? crypto.randomUUID(),
+    });
+    if (depErr) depositError = friendlyError(depErr);
+  }
+
   // 3. Confirmation text
   if (f.get("send_text") === "on") {
     const { data: c } = await supabase.from("customers").select("first_name, phone, sms_consent").eq("id", customerId).single();
@@ -122,7 +157,44 @@ export async function createTicket(f: FormData) {
   }
 
   revalidatePath("/tickets");
-  redirect(`/tickets/${t.id}?new=1${f.get("print_label") === "on" ? "&print=1" : ""}`);
+  const extra = (f.get("print_label") === "on" ? "&print=1" : "") + (depositError ? `&deposit_error=${encodeURIComponent(depositError)}` : "");
+  redirect(`/tickets/${t.id}?new=1${extra}`);
+}
+
+/** Take a deposit (or another one) on an open ticket. */
+export async function takeDeposit(_: FormState, f: FormData): Promise<FormState> {
+  const { supabase } = await requireStaff();
+  const id = String(f.get("ticket_id"));
+  const amount = toCents(String(f.get("amount") ?? ""));
+  if (!amount) return { error: "Enter the deposit amount, e.g. 50 or 49.99." };
+  const { error } = await supabase.rpc("record_deposit", {
+    p_ticket_id: id,
+    p_method: String(f.get("method") ?? "debit"),
+    p_amount_cents: amount,
+    p_reference: str(f, "reference"),
+    p_idempotency_key: String(f.get("idempotency_key")),
+  });
+  if (error) return { error: friendlyError(error) };
+  revalidatePath(`/tickets/${id}`);
+  return { ok: `Deposit of ${cents(amount)} recorded.` };
+}
+
+/** Owner/manager: give back a deposit (e.g. the customer cancelled). */
+export async function refundDeposit(_: FormState, f: FormData): Promise<FormState> {
+  const { supabase } = await requireStaff();
+  const id = String(f.get("ticket_id"));
+  const amount = toCents(String(f.get("amount") ?? ""));
+  if (!amount) return { error: "Enter the amount to give back." };
+  const { error } = await supabase.rpc("refund_deposit", {
+    p_ticket_id: id,
+    p_method: String(f.get("method") ?? "debit"),
+    p_amount_cents: amount,
+    p_reason: String(f.get("reason") ?? ""),
+    p_idempotency_key: String(f.get("idempotency_key")),
+  });
+  if (error) return { error: friendlyError(error) };
+  revalidatePath(`/tickets/${id}`);
+  return { ok: `Refunded ${cents(amount)}.` };
 }
 
 export async function setStatus(f: FormData) {
@@ -133,7 +205,7 @@ export async function setStatus(f: FormData) {
 
   const { data: t } = await supabase
     .from("tickets")
-    .select("id, number, status, brand, model, device_type, estimate, deposit, customer_id, customers(first_name, phone, sms_consent)")
+    .select("id, number, status, brand, model, device_type, estimate_cents, customer_id, customers(first_name, phone, sms_consent)")
     .eq("id", id)
     .single();
   if (!t || t.status === to) return;
@@ -158,15 +230,18 @@ export async function setStatus(f: FormData) {
   // "Ready" → text the customer automatically
   const c: any = t.customers;
   if (to === "ready" && c?.phone && c?.sms_consent) {
-    // Deposit was paid in real dollars, so take it off the after-tax total.
-    const totalWithTax = Math.round(Number(t.estimate ?? 0) * (1 + Number(shop.tax_rate ?? 0.13)) * 100) / 100;
-    const balance = totalWithTax - Number(t.deposit ?? 0);
+    // Estimate + HST (integer maths, rounded half-up like the invoice), minus the deposit the ledger holds.
+    const est = Number(t.estimate_cents ?? 0);
+    const rateBp = Math.round(Number(shop.tax_rate ?? 0.13) * 10000); // 0.13 → 1300
+    const totalWithTax = est + Math.floor((est * rateBp + 5000) / 10000);
+    const { data: dep } = await supabase.rpc("ticket_deposit_cents", { p_ticket_id: id });
+    const balance = totalWithTax - Number(dep ?? 0);
     const body = smsTemplates.ready(
       c.first_name ?? "there",
       deviceName(t),
       ticketLabel(shop.ticket_prefix, t.number),
       shop.name,
-      balance > 0 ? money(balance) : null
+      est > 0 && balance > 0 ? cents(balance) : null
     );
     await logText(supabase, t.customer_id, id, c.phone, body, staff.id);
   }
@@ -197,9 +272,16 @@ export async function textCustomer(f: FormData) {
   revalidatePath(`/tickets/${id}`);
 }
 
+// Deposits are not edited here: they're money and go through takeDeposit/refundDeposit.
 export async function updateTicket(f: FormData) {
   const { supabase } = await requireStaff();
   const id = String(f.get("ticket_id"));
+  let estimateCents: number | null = null;
+  try {
+    estimateCents = optCents(f, "estimate");
+  } catch {
+    redirect(`/tickets/${id}?edit=1&error=amount`);
+  }
   await supabase
     .from("tickets")
     .update({
@@ -207,8 +289,7 @@ export async function updateTicket(f: FormData) {
       model: str(f, "model"),
       imei_serial: str(f, "imei_serial"),
       problem: str(f, "problem") ?? "Diagnosis",
-      estimate: num(f, "estimate"),
-      deposit: num(f, "deposit") ?? 0,
+      estimate_cents: estimateCents,
       technician_id: str(f, "technician_id"),
     })
     .eq("id", id);
