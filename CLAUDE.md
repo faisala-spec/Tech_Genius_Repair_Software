@@ -44,7 +44,13 @@ If it isn't solid by ~Dec 20, tell the owner plainly: another month of RepairDes
 - Not connected to the owner's separate online trading platform. Keep them separate for now.
 - **Owner's own feature request:** a "talk to update" button — tech or front desk taps, speaks, and AI changes the ticket status, writes notes, or drafts a quote. Do this right after Day One.
 
-## Current state (as of Nov 11, 2026)
+## Progress on the accounting plan (as of Nov 19, 2026)
+- Steps 1–4 DONE (on `main` locally + branch): `db/007_rls_hardening.sql`, `008_ledger.sql`, `009_expenses_cash.sql`, `010_reports.sql`; `docs/ACCOUNTING.md`; `npm test` = 70 PGlite tests (RLS by role, ledger invariants after every test, random sequences, a hand-worked day vs every report).
+- Steps 5–6 DONE on branch **`accounting-redesign`** (pushed, NOT merged): all screens use the money RPCs; new Home (layout A), Sales, Expenses, Cash drawer, Reports (+CSV), Settings, + Create menu, dark mode. `npm run build` clean.
+- **Do NOT merge to `main` before the live database has 007–010**: Vercel deploys `main`, and the new screens need the new tables/functions.
+- BLOCKED: no database to click through the new screens. Creating a separate Supabase "staging" project was refused by the tool's safety check; the owner must approve either (a) a free staging project in ca-central-1 or (b) applying 007–010 to the live project (it has 0 tickets/invoices; 008 refuses to run otherwise; customers untouched). Then: visual walkthrough → merge → deploy (step 7) → staff logins (step 8).
+
+## Earlier state (as of Nov 11, 2026)
 Built and pushed. Nov 11: `npm install`, `npm run build` (type checking ON, zero errors) and `npm run dev` all work; login screen loads at http://localhost:3000/login. Every screen clicked through in Edge (desktop + phone size) with a test ticket: check-in, status, notes, ready text, pickup + warranty, invoice + payment, print invoice/label, customer search/edit/new. Fixed: board overflow, deposit taken from DB (once per ticket), balance-after-tax in ready text, Toronto dates for warranty, "credit owed" instead of negative balance.
 - `app/` Next.js 15 App Router screens: login, home dashboard, tickets (board + list + new + detail with status buttons, notes, texting), customers (search by phone/name/email/ticket #, detail, new, edit), invoices (builder with HST/discount/deposit/payments, detail, void for owner/manager), print pages (`/print/invoice/[id]`, `/print/label/[id]`).
 - `lib/` Supabase server client, session/role helpers, formatting, Twilio sender (texts no-op until env vars exist).
